@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(**)",
+      "Exec(uv run pytest)",
+      "Exec(uv run ruff)",
+      "Exec(uv run mypy)",
+      "Exec(uv run uvicorn)",
+      "Exec(docker compose build)",
+      "Exec(docker compose up)",
+      "Exec(docker compose down)",
+      "Exec(docker compose config)",
+      "Exec(git status)",
+      "Exec(git diff)",
+      "Exec(git log)",
+      "Fetch(domain:api.github.com)"
+    ],
+    "ask": [
+      "Exec(git add)", "Exec(git commit)", "Exec(git push)", "Exec(git pull)",
+      "Exec(git merge)", "Exec(git rebase)", "Exec(git reset)", "Exec(git checkout)",
+      "Exec(git switch)", "Exec(uv add)", "Exec(uv remove)", "Exec(uv run python)"
+    ],
+    "deny": ["Read(.env)", "Write(.env)"]
+  }
+}
