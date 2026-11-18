@@ -1,16 +1,20 @@
 {% extends "base.html" %}
 {% block content %}
 <h1>GitHub Repo Analyzer</h1>
-<form method="post" action="/analyze">
+<form id="repo-form" method="post" action="/analyze"
+      hx-post="/analyze" hx-target="#report" hx-swap="innerHTML" hx-indicator="#analyzing">
   <label for="repo">Repository</label>
   <input id="repo" name="repo" type="text" placeholder="owner/name or github.com link" required>
   <label for="token">GitHub token (optional)</label>
   <input id="token" name="token" type="password" autocomplete="off">
+  <p class="help">Optional. Needed for private repos and gives you your own rate limit. Use a fine-grained read-only token. It's used for this request only and never stored.</p>
   <button type="submit">Analyze</button>
+  <span id="analyzing" class="htmx-indicator">Analyzing...</span>
 </form>
+<div id="report"></div>
 {% if recent %}
 <h2>Recent analyses</h2>
-<ul>
+<ul class="recent">
   {% for name in recent %}<li>{{ name }}</li>{% endfor %}
 </ul>
 {% endif %}

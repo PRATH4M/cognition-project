@@ -228,6 +228,7 @@ class LanguageShare(BaseModel):
 class RepoMetrics(BaseModel):
     """Computed commit-frequency metrics for a repository."""
 
+    total_commits: int | None = None
     recent_12_weeks_commits: int | None = None
     previous_12_weeks_commits: int | None = None
     active_week_percentage: float | None = None

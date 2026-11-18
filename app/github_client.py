@@ -177,6 +177,33 @@ class GitHubClient:
             raise SectionUnavailableError("languages", str(exc)) from exc
         return GitHubResponse(data=languages, rate_limit=rate_limit)
 
+    async def get_commit_count(
+        self, ref: RepoRef, *, user_token: SecretStr | None = None
+    ) -> GitHubResponse[int | None]:
+        """Count all commits on the default branch via ``per_page=1`` pagination."""
+        try:
+            response, rate_limit = await self._request(
+                "GET",
+                f"{self._repo_path(ref)}/commits",
+                user_token=user_token,
+                params={"per_page": 1},
+            )
+        except GitHubStatusError as exc:
+            if exc.status_code == 409:
+                return GitHubResponse(data=0, rate_limit=exc.rate_limit)
+            raise SectionUnavailableError("commit_count", exc.message) from exc
+        except GitHubUnavailableError as exc:
+            raise SectionUnavailableError("commit_count", exc.message) from exc
+        last_page = self._link_page(response, "last")
+        if last_page is not None:
+            return GitHubResponse(data=last_page, rate_limit=rate_limit)
+        try:
+            payload = self._json(response)
+        except GitHubUnavailableError as exc:
+            raise SectionUnavailableError("commit_count", exc.message) from exc
+        count = len(payload) if isinstance(payload, list) else 0
+        return GitHubResponse(data=count, rate_limit=rate_limit)
+
     async def get_readme(
         self, ref: RepoRef, *, user_token: SecretStr | None = None
     ) -> GitHubResponse[str | None]:

@@ -10,6 +10,7 @@ from typing import Annotated, cast
 from fastapi import APIRouter, FastAPI, Form, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, SecretStr
 
@@ -84,7 +85,10 @@ async def app_error_handler(request: Request, exc: Exception) -> Response:
         return JSONResponse({"detail": app_exc.message}, status_code=app_exc.status_code)
     template = "partials/error.html" if _is_htmx(request) else "error.html"
     return _templates(request).TemplateResponse(
-        request, template, {"message": app_exc.message}, status_code=app_exc.status_code
+        request,
+        template,
+        {"message": app_exc.message, "rate_limit": app_exc.rate_limit},
+        status_code=app_exc.status_code,
     )
 
 
@@ -105,10 +109,12 @@ async def unexpected_error_handler(request: Request, _exc: Exception) -> Respons
 
 
 def _report_context(outcome: AnalysisOutcome) -> dict[str, object]:
+    weeks = [{"week": w.week, "total": w.total} for w in reversed(outcome.report.activity.weeks)]
     return {
         "outcome": outcome,
         "report": outcome.report,
         "rate_limit": outcome.rate_limit,
+        "chart_data": weeks,
     }
 
 
@@ -121,6 +127,11 @@ def _api_payload(outcome: AnalysisOutcome) -> dict[str, object]:
         "rate_limit": rate_limit,
         "report": outcome.report.model_dump(mode="json"),
     }
+
+
+def _commas(value: int) -> str:
+    """Format an integer with thousands separators."""
+    return f"{value:,}"
 
 
 def _lifespan(
@@ -154,7 +165,14 @@ def create_app(
     app = FastAPI(title="GitHub Repo Analyzer", lifespan=_lifespan(settings, service))
     if service is not None:
         app.state.service = service
-    app.state.templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+    templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+    templates.env.filters["commas"] = _commas
+    app.state.templates = templates
+    app.mount(
+        "/static",
+        StaticFiles(directory=Path(__file__).parent / "static"),
+        name="static",
+    )
     app.include_router(router)
     app.add_exception_handler(AppError, app_error_handler)
     app.add_exception_handler(RequestValidationError, validation_error_handler)

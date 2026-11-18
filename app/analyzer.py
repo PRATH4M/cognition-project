@@ -36,6 +36,7 @@ def analyze(
     languages: dict[str, int] | None = None,
     unavailable_sections: list[str] | None = None,
     pending_sections: list[str] | None = None,
+    commit_count: int | None = None,
     now: datetime,
 ) -> AnalysisReport:
     """Build a complete analysis report from fetched GitHub data."""
@@ -51,6 +52,7 @@ def analyze(
             activity.weeks if activity_weeks is not None else None,
             contributor_analysis,
             languages or {},
+            commit_count=commit_count,
         ),
         unavailable_sections=unavailable_sections or [],
         pending_sections=pending_sections or [],
@@ -129,6 +131,7 @@ def build_metrics(
     weeks: list[WeekPoint] | None,
     contributors: ContributorAnalysis,
     languages: dict[str, int],
+    commit_count: int | None = None,
 ) -> RepoMetrics:
     """Compute commit-frequency metrics from normalized analyzer inputs."""
     humans = [c for c in contributors.contributors if not c.is_bot]
@@ -152,6 +155,7 @@ def build_metrics(
         maintenance = _maintenance_status(totals, recent, previous)
 
     return RepoMetrics(
+        total_commits=commit_count,
         recent_12_weeks_commits=recent,
         previous_12_weeks_commits=previous,
         active_week_percentage=active_pct,

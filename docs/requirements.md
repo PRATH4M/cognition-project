@@ -12,7 +12,7 @@ Build a tool that takes a public GitHub repo URL and presents insights using the
 | ID | Requirement | Acceptance criteria |
 |---|---|---|
 | FR1 | Repo input | Accepts `https://github.com/owner/repo`, `github.com/owner/repo`, `owner/repo`, a `.git` suffix, a trailing slash and deeper paths (`/tree/...`), normalised to `owner/repo`. Anything else shows "Enter a repo like owner/name or a github.com link". |
-| FR2 | Metadata | Name, description, stars, forks, watchers, open issues and PRs (GitHub counts both together), primary language, license, topics, created and last-pushed dates, archived flag. |
+| FR2 | Metadata | Name, description, stars, forks, watchers, open issues and PRs (GitHub counts both together), primary language, license, topics, created and last-pushed dates, archived flag. Total commits on the default branch (all time). |
 | FR3 | Contributors | All contributors with GitHub accounts, sorted by commits, with avatar, login and commit count; bots marked; top 10 shown, the rest in an expandable list. Without a token, only the first 100 load, with a notice to add a token. If GitHub refuses the list (very large repos), the section says so. |
 | FR4 | Commit activity | Line chart of weekly commits for the last 52 weeks. |
 | FR5 | Commit-frequency metrics | Busiest weekday and hour (from GitHub's punch card); last 12 weeks vs previous 12; % of weeks with commits; language breakdown; bus factor (share of commits by the top 1 and top 3, bots excluded); maintenance status. |

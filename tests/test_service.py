@@ -36,7 +36,7 @@ async def test_analyze_repeat_uses_repo_cache(
     second = await service.analyze("octo/repo")
     assert second.cached is True
     assert second.analysis_id == first.analysis_id
-    assert len(fake_client.calls) == 5
+    assert len(fake_client.calls) == 6
 
 
 async def test_analyze_cache_key_is_github_full_name_lowercased(
@@ -66,7 +66,7 @@ async def test_analyze_private_repo_not_cached(
     assert outcome.analysis_id
     assert service.recent() == []
     await service.analyze("octo/secret")
-    assert len(fake_client.calls) == 10
+    assert len(fake_client.calls) == 12
 
 
 async def test_analyze_user_token_skips_repo_cache(
@@ -88,7 +88,7 @@ async def test_analyze_partial_result_not_repo_cached(
     assert outcome.report.contributors.contributors == []
     assert service.recent() == []
     await service.analyze("octo/repo")
-    assert len(fake_client.calls) == 10
+    assert len(fake_client.calls) == 12
 
 
 async def test_analyze_stats_pending_not_repo_cached(
@@ -103,7 +103,29 @@ async def test_analyze_stats_pending_not_repo_cached(
     assert outcome.report.activity.pending is True
     assert service.recent() == []
     await service.analyze("octo/repo")
-    assert len(fake_client.calls) == 10
+    assert len(fake_client.calls) == 12
+
+
+async def test_analyze_commit_count_in_report(
+    service: AnalysisService, fake_client: FakeGitHubClient
+) -> None:
+    """The commit count section lands in the report metrics."""
+    fake_client.commit_count_response = GitHubResponse(
+        data=4321, rate_limit=RateLimitInfo(remaining=59)
+    )
+    outcome = await service.analyze("octo/repo")
+    assert outcome.report.metrics.total_commits == 4321
+
+
+async def test_analyze_commit_count_failure_degrades(
+    service: AnalysisService, fake_client: FakeGitHubClient
+) -> None:
+    """A commit-count failure marks only that section unavailable."""
+    fake_client.errors["commit_count"] = SectionUnavailableError("commit_count", "boom")
+    outcome = await service.analyze("octo/repo")
+    assert outcome.report.unavailable_sections == ["commit_count"]
+    assert outcome.report.metrics.total_commits is None
+    assert service.recent() == []
 
 
 async def test_analyze_repo_not_found(

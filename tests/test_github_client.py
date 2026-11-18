@@ -523,3 +523,51 @@ async def test_max_six_concurrent_requests(repo_ref: RepoRef, client_factory: An
     client = client_factory()
     await asyncio.gather(*(client.get_languages(repo_ref) for _ in range(10)))
     assert max_active <= 6
+
+
+@respx.mock
+async def test_commit_count_uses_last_page(repo_ref: RepoRef, client_factory: Any) -> None:
+    """rel=last page number is the total commit count."""
+    client = client_factory()
+    link = f'<{repo_api("/commits")}?per_page=1&page=37>; rel="last"'
+    route = respx.get(repo_api("/commits")).respond(
+        200, json=[{"sha": "abc"}], headers={"Link": link}
+    )
+    result = await client.get_commit_count(repo_ref)
+    assert result.data == 37
+    assert route.calls.last.request.url.params["per_page"] == "1"
+
+
+@respx.mock
+async def test_commit_count_without_link_uses_returned_count(
+    repo_ref: RepoRef, client_factory: Any
+) -> None:
+    """Without a Link header the total is the number of commits returned."""
+    client = client_factory()
+    respx.get(repo_api("/commits")).respond(200, json=[{"sha": "abc"}])
+    result = await client.get_commit_count(repo_ref)
+    assert result.data == 1
+
+    respx.get(repo_api("/commits")).respond(200, json=[])
+    result = await client.get_commit_count(repo_ref)
+    assert result.data == 0
+
+
+@respx.mock
+async def test_commit_count_empty_repo_409_is_zero(repo_ref: RepoRef, client_factory: Any) -> None:
+    """GitHub's empty-repo 409 means zero commits."""
+    client = client_factory()
+    respx.get(repo_api("/commits")).respond(409, json={"message": "Git Repository is empty"})
+    result = await client.get_commit_count(repo_ref)
+    assert result.data == 0
+
+
+@respx.mock
+async def test_commit_count_other_failure_is_section_unavailable(
+    repo_ref: RepoRef, client_factory: Any
+) -> None:
+    """Non-409 failures degrade the section."""
+    client = client_factory()
+    respx.get(repo_api("/commits")).respond(500, json={"message": "boom"})
+    with pytest.raises(SectionUnavailableError):
+        await client.get_commit_count(repo_ref)

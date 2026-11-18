@@ -1,21 +1,119 @@
-{% set report = outcome.report %}
-<h2>{{ report.metadata.full_name }}</h2>
-<p>{{ report.metadata.description }}</p>
-<dl>
-  <dt>Stars</dt><dd>{{ report.metadata.stars }}</dd>
-  <dt>Forks</dt><dd>{{ report.metadata.forks }}</dd>
-  <dt>Watchers</dt><dd>{{ report.metadata.watchers if report.metadata.watchers is not none else "n/a" }}</dd>
-  <dt>Open issues</dt><dd>{{ report.metadata.open_issues }}</dd>
-  <dt>Language</dt><dd>{{ report.metadata.language or "n/a" }}</dd>
-  <dt>License</dt><dd>{{ report.metadata.license or "n/a" }}</dd>
-  <dt>Archived</dt><dd>{{ report.metadata.archived }}</dd>
-</dl>
-{% if report.unavailable_sections %}
-<p>Unavailable: {{ report.unavailable_sections | join(", ") }}</p>
-{% endif %}
-{% if report.pending_sections %}
-<p>Still computing: {{ report.pending_sections | join(", ") }}</p>
-{% endif %}
-{% if rate_limit %}
-<p>GitHub rate limit: {{ rate_limit.remaining }} remaining</p>
-{% endif %}
+{% set m = report.metadata %}
+{% set met = report.metrics %}
+{% set pc = report.punch_card %}
+{% set days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] %}
+{% set section_names = {'contributors': 'Contributors', 'commit_activity': 'Commit activity', 'punch_card': 'Punch card', 'languages': 'Languages', 'commit_count': 'Commit count', 'readme': 'README'} %}
+{% macro contributor_item(c) %}
+<li>
+  {% if c.avatar_url %}<img src="{{ c.avatar_url }}" alt="" width="24" height="24" loading="lazy">{% endif %}
+  {% if c.url %}<a href="{{ c.url }}" rel="noopener noreferrer">{{ c.login or 'anonymous' }}</a>{% else %}{{ c.login or 'anonymous' }}{% endif %}
+  {% if c.is_bot %}<span class="badge">bot</span>{% endif %}
+  <span class="commits">{{ c.commits | commas }}</span>
+</li>
+{% endmacro %}
+<section class="report">
+  <header>
+    <h2><a href="{{ m.url }}" rel="noopener noreferrer">{{ m.full_name }}</a></h2>
+    <p class="badges">
+      {% if outcome.cached %}<span class="badge">cached</span>{% endif %}
+      {% if outcome.is_private %}<span class="badge badge-private">private</span>{% endif %}
+      {% if m.archived %}<span class="badge">archived</span>{% endif %}
+    </p>
+    {% if m.description %}<p class="description">{{ m.description }}</p>{% endif %}
+  </header>
+
+  {% if report.unavailable_sections or report.pending_sections %}
+  <div class="notices">
+    {% if report.unavailable_sections %}
+    <p>Unavailable: {% for s in report.unavailable_sections %}{{ section_names.get(s, s) }}{{ ', ' if not loop.last }}{% endfor %}</p>
+    {% endif %}
+    {% if report.pending_sections %}
+    <p>Still computing: {% for s in report.pending_sections %}{{ section_names.get(s, s) }}{{ ', ' if not loop.last }}{% endfor %}.
+      <button type="submit" form="repo-form" class="retry">Retry</button></p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <section>
+    <h3>Overview</h3>
+    <dl class="stats">
+      <div><dt>Stars</dt><dd>{{ m.stars | commas }}</dd></div>
+      <div><dt>Forks</dt><dd>{{ m.forks | commas }}</dd></div>
+      <div><dt>Watchers</dt><dd>{{ m.watchers | commas if m.watchers is not none else 'n/a' }}</dd></div>
+      <div><dt>Open issues &amp; PRs</dt><dd>{{ m.open_issues | commas }}</dd></div>
+      <div><dt>Language</dt><dd>{{ m.language or 'n/a' }}</dd></div>
+      <div><dt>License</dt><dd>{{ m.license or 'n/a' }}</dd></div>
+      <div><dt>Created</dt><dd>{{ m.created_at.strftime('%Y-%m-%d') }}</dd></div>
+      <div><dt>Last push</dt><dd>{{ m.pushed_at.strftime('%Y-%m-%d') if m.pushed_at else 'n/a' }}</dd></div>
+    </dl>
+    {% if m.topics %}<p class="topics">{{ m.topics | join(', ') }}</p>{% endif %}
+  </section>
+
+  <section>
+    <h3>Commit activity</h3>
+    {% if report.activity.pending %}
+    <p>Commit stats are still being computed by GitHub.
+      <button type="submit" form="repo-form" class="retry">Retry</button></p>
+    {% elif report.activity.weeks %}
+    <canvas id="activity-chart" height="120"></canvas>
+    <script type="application/json" id="activity-data">{{ chart_data | tojson }}</script>
+    {% else %}
+    <p>No commit activity data.</p>
+    {% endif %}
+  </section>
+
+  <section>
+    <h3>Commit frequency</h3>
+    <dl class="stats">
+      <div><dt>Maintenance</dt><dd>{{ met.maintenance | capitalize }}</dd></div>
+      <div><dt>All time</dt><dd>{{ met.total_commits | commas ~ ' commits' if met.total_commits is not none else 'n/a' }}</dd></div>
+      {% if met.recent_12_weeks_commits is not none %}
+      <div><dt>Last 12 weeks</dt><dd>{{ met.recent_12_weeks_commits | commas }} commits</dd></div>
+      <div><dt>Previous 12 weeks</dt><dd>{{ met.previous_12_weeks_commits | commas }} commits</dd></div>
+      {% endif %}
+      {% if met.active_week_percentage is not none %}
+      <div><dt>Active weeks</dt><dd>{{ met.active_week_percentage }}%</dd></div>
+      {% endif %}
+      {% if pc.busiest_weekday is not none %}
+      <div><dt>Busiest time</dt><dd>{{ days[pc.busiest_weekday] }}s at {{ '%02d' | format(pc.busiest_hour) }}:00 (committers' local time)</dd></div>
+      {% endif %}
+      <div><dt>Bus factor (top 1)</dt><dd>{{ met.bus_factor_top1 ~ '%' if met.bus_factor_top1 is not none else 'n/a' }}</dd></div>
+      <div><dt>Bus factor (top 3)</dt><dd>{{ met.bus_factor_top3 ~ '%' if met.bus_factor_top3 is not none else 'n/a' }}</dd></div>
+    </dl>
+    {% if met.languages %}
+    <h4>Languages</h4>
+    <ul class="languages">
+      {% for share in met.languages %}<li>{{ share.name }} — {{ share.percentage }}%</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <section>
+    <h3>Contributors ({{ report.contributors.contributors | length }})</h3>
+    {% if report.contributors.needs_token %}
+    <p class="notice">Add a GitHub token to load all contributors.</p>
+    {% endif %}
+    {% if report.contributors.truncated %}
+    <p class="notice">Contributor list truncated at 5 pages.</p>
+    {% endif %}
+    {% set cs = report.contributors.contributors %}
+    {% if cs %}
+    <ul class="contributors">
+      {% for c in cs[:10] %}{{ contributor_item(c) }}{% endfor %}
+    </ul>
+    {% if cs | length > 10 %}
+    <details>
+      <summary>Show all {{ cs | length }} contributors</summary>
+      <ul class="contributors">
+        {% for c in cs[10:] %}{{ contributor_item(c) }}{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% else %}
+    <p>No contributors found.</p>
+    {% endif %}
+  </section>
+
+  {% include "partials/rate_limit.html" %}
+  <p class="analysis-id">Analysis ID: {{ outcome.analysis_id }}</p>
+</section>

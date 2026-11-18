@@ -122,6 +122,7 @@ class FakeGitHubClient:
             rate_limit=self.rate_limit,
         )
         self.languages_response = GitHubResponse(data={"Python": 100}, rate_limit=self.rate_limit)
+        self.commit_count_response = GitHubResponse(data=1234, rate_limit=self.rate_limit)
 
     def _record(self, name: str, ref: RepoRef, user_token: SecretStr | None) -> None:
         self.calls.append(f"{name}:{ref.full_name}")
@@ -163,6 +164,13 @@ class FakeGitHubClient:
         """Return the canned languages response."""
         self._record("languages", ref, user_token)
         return self.languages_response
+
+    async def get_commit_count(
+        self, ref: RepoRef, *, user_token: SecretStr | None = None
+    ) -> GitHubResponse[Any]:
+        """Return the canned commit count response."""
+        self._record("commit_count", ref, user_token)
+        return self.commit_count_response
 
     async def get_readme(
         self, ref: RepoRef, *, user_token: SecretStr | None = None

@@ -67,6 +67,7 @@ class AnalysisService:
             self._client.get_commit_activity(ref, user_token=user_token),
             self._client.get_punch_card(ref, user_token=user_token),
             self._client.get_languages(ref, user_token=user_token),
+            self._client.get_commit_count(ref, user_token=user_token),
             return_exceptions=True,
         )
         unavailable: list[str] = []
@@ -75,6 +76,7 @@ class AnalysisService:
         activity_resp = self._section(sections[1], "commit_activity", unavailable)
         punch_resp = self._section(sections[2], "punch_card", unavailable)
         languages_resp = self._section(sections[3], "languages", unavailable)
+        count_resp = self._section(sections[4], "commit_count", unavailable)
 
         activity_pending = bool(activity_resp and activity_resp.stats_pending)
         punch_pending = bool(punch_resp and punch_resp.stats_pending)
@@ -92,6 +94,7 @@ class AnalysisService:
             languages=languages_resp.data if languages_resp else {},
             unavailable_sections=unavailable,
             pending_sections=pending,
+            commit_count=count_resp.data if count_resp else None,
             now=datetime.now(UTC),
         )
         analysis_id = self._store.put(report)
