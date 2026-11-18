@@ -114,6 +114,21 @@
     {% endif %}
   </section>
 
+  <section class="brief">
+    <h3>AI brief</h3>
+    <div id="brief-result">
+      {% if outcome.brief_available %}
+      <input type="hidden" id="analysis-id-input" name="analysis_id" value="{{ outcome.analysis_id }}">
+      <button type="button" hx-post="/brief" hx-include="#analysis-id-input"
+              hx-target="#brief-result" hx-swap="innerHTML" hx-disabled-elt="this">
+        Generate AI brief
+      </button>
+      {% else %}
+      <p class="notice">AI brief unavailable. {{ outcome.brief_blocked_reason }}.</p>
+      {% endif %}
+    </div>
+  </section>
+
   {% include "partials/rate_limit.html" %}
   <p class="analysis-id">Analysis ID: {{ outcome.analysis_id }}</p>
 </section>

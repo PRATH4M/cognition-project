@@ -249,3 +249,33 @@ class AnalysisReport(BaseModel):
     unavailable_sections: list[str] = Field(default_factory=list)
     pending_sections: list[str] = Field(default_factory=list)
     generated_at: datetime
+
+
+class BriefPoint(BaseModel):
+    """A single brief bullet with the metric fields it cites."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    text: str
+    fields: list[str]
+
+
+class Brief(BaseModel):
+    """Raw brief structure returned by the LLM."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    summary: str
+    strengths: list[BriefPoint]
+    risks: list[BriefPoint]
+    getting_started: list[BriefPoint]
+
+
+class GeneratedBrief(BaseModel):
+    """Validated brief with grounded points and a dropped-point count."""
+
+    summary: str
+    strengths: list[BriefPoint]
+    risks: list[BriefPoint]
+    getting_started: list[BriefPoint]
+    dropped_points: int = 0

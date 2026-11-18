@@ -228,3 +228,26 @@ def test_rate_limit_badge_shows_reset(client: TestClient, fake_client: FakeGitHu
     response = client.post("/analyze", data={"repo": "octo/repo", "token": ""})
     assert "42 requests remaining" in response.text
     assert "resets 2026-11-20 03:00 UTC" in response.text
+
+
+def test_report_brief_button_when_available(brief_client: TestClient) -> None:
+    """A configured brief generator shows the Generate button."""
+    response = brief_client.post("/analyze", data={"repo": "octo/repo", "token": ""})
+    assert "Generate AI brief" in response.text
+    assert "hx-disabled-elt" in response.text
+    assert 'id="analysis-id-input"' in response.text
+    assert 'name="analysis_id"' in response.text
+
+
+def test_report_brief_unavailable_without_key(client: TestClient) -> None:
+    """Without a generator the panel says the brief is unavailable."""
+    response = client.post("/analyze", data={"repo": "octo/repo", "token": ""})
+    assert "AI brief unavailable" in response.text
+    assert "No LLM key configured" in response.text
+    assert "Generate AI brief" not in response.text
+
+
+def test_index_has_favicon(client: TestClient) -> None:
+    """The base template suppresses favicon requests."""
+    response = client.get("/")
+    assert 'rel="icon" href="data:,"' in response.text

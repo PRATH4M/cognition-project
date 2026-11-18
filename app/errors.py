@@ -55,6 +55,18 @@ class GitHubUnavailableError(AppError):
     status_code = 502
 
 
+class AnalysisNotFoundError(AppError):
+    """Raised when an analysis ID is unknown or expired."""
+
+    status_code = 404
+
+
+class BriefGenerationError(AppError):
+    """Raised when the LLM brief request fails."""
+
+    status_code = 502
+
+
 class GitHubStatusError(Exception):
     """Internal non-fatal GitHub HTTP status used for section mapping."""
 

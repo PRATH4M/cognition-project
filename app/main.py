@@ -18,6 +18,8 @@ from app.cache import AnalysisStore, RepoAnalysisCache
 from app.config import Settings
 from app.errors import AppError
 from app.github_client import GitHubClient
+from app.llm import BriefGenerator
+from app.models import AnalysisReport, GeneratedBrief, RateLimitInfo
 from app.service import AnalysisOutcome, AnalysisService
 
 
@@ -26,6 +28,30 @@ class AnalyzeRequest(BaseModel):
 
     repo: str
     token: str | None = None
+
+
+class AnalyzeResponse(BaseModel):
+    """JSON response for ``POST /api/analyze``."""
+
+    analysis_id: str
+    cached: bool
+    is_private: bool
+    rate_limit: RateLimitInfo | None
+    report: AnalysisReport
+
+
+class BriefRequest(BaseModel):
+    """JSON body for ``POST /api/brief``."""
+
+    analysis_id: str
+
+
+class BriefResponse(BaseModel):
+    """JSON response for ``POST /api/brief``."""
+
+    analysis_id: str
+    brief: GeneratedBrief | None
+    reason: str | None
 
 
 router = APIRouter()
@@ -69,13 +95,42 @@ async def analyze_form(
     return _templates(request).TemplateResponse(request, template, _report_context(outcome))
 
 
-@router.post("/api/analyze")
-async def api_analyze(request: Request, body: AnalyzeRequest) -> JSONResponse:
+@router.post("/api/analyze", response_model=AnalyzeResponse)
+async def api_analyze(request: Request, body: AnalyzeRequest) -> AnalyzeResponse:
     """Analyze a repo and return the report as JSON."""
     outcome = await _service(request).analyze(
         body.repo, user_token=SecretStr(body.token) if body.token else None
     )
-    return JSONResponse(_api_payload(outcome))
+    return AnalyzeResponse(
+        analysis_id=outcome.analysis_id,
+        cached=outcome.cached,
+        is_private=outcome.is_private,
+        rate_limit=outcome.rate_limit,
+        report=outcome.report,
+    )
+
+
+@router.post("/brief", response_class=HTMLResponse)
+async def brief_form(request: Request, analysis_id: Annotated[str, Form()]) -> Response:
+    """Generate or fetch the AI brief for a stored analysis."""
+    result = await _service(request).generate_brief(analysis_id)
+    template = "partials/brief.html" if _is_htmx(request) else "brief.html"
+    return _templates(request).TemplateResponse(
+        request,
+        template,
+        {"analysis_id": analysis_id, "brief": result.brief, "reason": result.reason},
+    )
+
+
+@router.post("/api/brief", response_model=BriefResponse)
+async def api_brief(request: Request, body: BriefRequest) -> BriefResponse:
+    """Generate or fetch the AI brief and return it as JSON."""
+    result = await _service(request).generate_brief(body.analysis_id)
+    return BriefResponse(
+        analysis_id=body.analysis_id,
+        brief=result.brief,
+        reason=result.reason,
+    )
 
 
 async def app_error_handler(request: Request, exc: Exception) -> Response:
@@ -118,17 +173,6 @@ def _report_context(outcome: AnalysisOutcome) -> dict[str, object]:
     }
 
 
-def _api_payload(outcome: AnalysisOutcome) -> dict[str, object]:
-    rate_limit = outcome.rate_limit.model_dump(mode="json") if outcome.rate_limit else None
-    return {
-        "analysis_id": outcome.analysis_id,
-        "cached": outcome.cached,
-        "is_private": outcome.is_private,
-        "rate_limit": rate_limit,
-        "report": outcome.report.model_dump(mode="json"),
-    }
-
-
 def _commas(value: int) -> str:
     """Format an integer with thousands separators."""
     return f"{value:,}"
@@ -143,16 +187,25 @@ def _lifespan(
         if service is None:
             resolved = settings or Settings()
             client = GitHubClient(server_token=resolved.github_token)
+            generator = (
+                BriefGenerator(resolved.openrouter_api_key, resolved.llm_model)
+                if resolved.openrouter_api_key and resolved.llm_model
+                else None
+            )
             app.state.service = AnalysisService(
                 client,
                 AnalysisStore(resolved.cache_ttl_seconds),
                 RepoAnalysisCache(resolved.cache_ttl_seconds),
+                brief_generator=generator,
+                zdr_enabled=resolved.llm_zdr_enabled,
             )
             app.state.github_client = client
+            app.state.brief_generator = generator
         yield
-        existing: GitHubClient | None = getattr(app.state, "github_client", None)
-        if existing is not None:
-            await existing.aclose()
+        for attr in ("github_client", "brief_generator"):
+            resource = getattr(app.state, attr, None)
+            if resource is not None:
+                await resource.aclose()
 
     return lifespan
 

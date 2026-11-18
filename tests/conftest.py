@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 import pytest_asyncio
 from fastapi.testclient import TestClient
-from helpers import FakeGitHubClient
+from helpers import FakeBriefGenerator, FakeGitHubClient
 from pydantic import SecretStr
 
 from app.cache import AnalysisStore, RepoAnalysisCache
@@ -82,6 +82,22 @@ def service(fake_client: FakeGitHubClient) -> AnalysisService:
 
 
 @pytest.fixture
+def service_factory(fake_client: FakeGitHubClient) -> Any:
+    """Return a factory for services with brief options."""
+
+    def make(*, zdr_enabled: bool = False, brief_generator: Any = None) -> AnalysisService:
+        return AnalysisService(
+            fake_client,  # type: ignore[arg-type]
+            AnalysisStore(3600),
+            RepoAnalysisCache(3600),
+            brief_generator=brief_generator,
+            zdr_enabled=zdr_enabled,
+        )
+
+    return make
+
+
+@pytest.fixture
 def test_settings() -> Settings:
     """Return settings with all keys disabled, ignoring ``.env`` and env vars."""
     return Settings(
@@ -96,3 +112,23 @@ def test_settings() -> Settings:
 def client(service: AnalysisService, test_settings: Settings) -> TestClient:
     """Return a test client for the app with the fake service."""
     return TestClient(create_app(test_settings, service=service), raise_server_exceptions=False)
+
+
+@pytest.fixture
+def brief_generator() -> FakeBriefGenerator:
+    """Return a fake brief generator."""
+    return FakeBriefGenerator()
+
+
+@pytest.fixture
+def brief_service(service_factory: Any, brief_generator: FakeBriefGenerator) -> AnalysisService:
+    """Return a service with a fake brief generator and ZDR off."""
+    return service_factory(brief_generator=brief_generator)
+
+
+@pytest.fixture
+def brief_client(brief_service: AnalysisService, test_settings: Settings) -> TestClient:
+    """Return a test client whose service can generate briefs."""
+    return TestClient(
+        create_app(test_settings, service=brief_service), raise_server_exceptions=False
+    )

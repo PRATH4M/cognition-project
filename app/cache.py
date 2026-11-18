@@ -5,8 +5,19 @@ from __future__ import annotations
 import secrets
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 
-from app.models import AnalysisReport
+from app.models import AnalysisReport, GeneratedBrief
+
+
+@dataclass
+class StoredAnalysis:
+    """A stored analysis with its optional README and generated brief."""
+
+    report: AnalysisReport
+    readme: str | None = None
+    brief: GeneratedBrief | None = None
+    private: bool = False
 
 
 class AnalysisStore:
@@ -23,27 +34,45 @@ class AnalysisStore:
         self._ttl = ttl_seconds
         self._max_entries = max_entries
         self._clock = clock
-        self._entries: dict[str, tuple[AnalysisReport, float]] = {}
+        self._entries: dict[str, tuple[StoredAnalysis, float]] = {}
 
-    def put(self, report: AnalysisReport) -> str:
+    def put(
+        self,
+        report: AnalysisReport,
+        *,
+        readme: str | None = None,
+        private: bool = False,
+    ) -> str:
         """Store a report and return its new analysis ID."""
         self._drop_expired()
         analysis_id = secrets.token_urlsafe(16)
-        self._entries[analysis_id] = (report, self._clock() + self._ttl)
+        entry = StoredAnalysis(report=report, readme=readme, private=private)
+        self._entries[analysis_id] = (entry, self._clock() + self._ttl)
         while len(self._entries) > self._max_entries:
             self._entries.pop(next(iter(self._entries)))
         return analysis_id
 
     def get(self, analysis_id: str) -> AnalysisReport | None:
         """Return a stored report, or ``None`` when missing or expired."""
+        stored = self.get_stored(analysis_id)
+        return stored.report if stored is not None else None
+
+    def get_stored(self, analysis_id: str) -> StoredAnalysis | None:
+        """Return the full stored entry, or ``None`` when missing or expired."""
         entry = self._entries.get(analysis_id)
         if entry is None:
             return None
-        report, expires_at = entry
+        stored, expires_at = entry
         if expires_at <= self._clock():
             del self._entries[analysis_id]
             return None
-        return report
+        return stored
+
+    def set_brief(self, analysis_id: str, brief: GeneratedBrief) -> None:
+        """Attach a generated brief to an existing entry."""
+        entry = self._entries.get(analysis_id)
+        if entry is not None:
+            entry[0].brief = brief
 
     def _drop_expired(self) -> None:
         now = self._clock()

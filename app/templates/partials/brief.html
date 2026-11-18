@@ -1,0 +1,27 @@
+{% if reason %}
+<p class="notice">AI brief unavailable. {{ reason }}.</p>
+{% elif brief %}
+<h4>Summary</h4>
+<p>{{ brief.summary }}</p>
+<h4>Strengths</h4>
+<ul>
+  {% for point in brief.strengths %}
+  <li>{{ point.text }} <span class="fields">({{ point.fields | join(', ') }})</span></li>
+  {% endfor %}
+</ul>
+<h4>Risks</h4>
+<ul>
+  {% for point in brief.risks %}
+  <li>{{ point.text }} <span class="fields">({{ point.fields | join(', ') }})</span></li>
+  {% endfor %}
+</ul>
+<h4>Getting started</h4>
+<ul>
+  {% for point in brief.getting_started %}
+  <li>{{ point.text }} <span class="fields">({{ point.fields | join(', ') }})</span></li>
+  {% endfor %}
+</ul>
+{% if brief.dropped_points %}
+<p class="notice">{{ brief.dropped_points }} point{{ 's' if brief.dropped_points != 1 }} dropped for citing unknown fields.</p>
+{% endif %}
+{% endif %}

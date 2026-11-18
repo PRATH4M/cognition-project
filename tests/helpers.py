@@ -10,7 +10,9 @@ from pydantic import SecretStr
 from app.analyzer import analyze
 from app.models import (
     AnalysisReport,
+    BriefPoint,
     ContributorResult,
+    GeneratedBrief,
     GitHubCommitActivityWeek,
     GitHubContributor,
     GitHubLicense,
@@ -90,12 +92,14 @@ def make_report(
     repo: GitHubRepo | None = None,
     contributors: ContributorResult | None = None,
     activity_weeks: list[GitHubCommitActivityWeek] | None = None,
+    commit_count: int | None = None,
 ) -> AnalysisReport:
     """Build an analysis report from test data."""
     return analyze(
         repo if repo is not None else make_repo(),
         contributors if contributors is not None else make_contributors_result([]),
         activity_weeks if activity_weeks is not None else [],
+        commit_count=commit_count,
         now=NOW,
     )
 
@@ -123,6 +127,9 @@ class FakeGitHubClient:
         )
         self.languages_response = GitHubResponse(data={"Python": 100}, rate_limit=self.rate_limit)
         self.commit_count_response = GitHubResponse(data=1234, rate_limit=self.rate_limit)
+        self.readme_response = GitHubResponse(
+            data="# Demo\n\nA demo repository.", rate_limit=self.rate_limit
+        )
 
     def _record(self, name: str, ref: RepoRef, user_token: SecretStr | None) -> None:
         self.calls.append(f"{name}:{ref.full_name}")
@@ -175,6 +182,37 @@ class FakeGitHubClient:
     async def get_readme(
         self, ref: RepoRef, *, user_token: SecretStr | None = None
     ) -> GitHubResponse[Any]:
-        """Return an empty README response."""
+        """Return the canned README response."""
         self._record("readme", ref, user_token)
-        return GitHubResponse(data=None, rate_limit=self.rate_limit)
+        return self.readme_response
+
+
+def make_brief() -> GeneratedBrief:
+    """Return a canned generated brief."""
+    point = BriefPoint(text="Active project", fields=["total_commits"])
+    return GeneratedBrief(
+        summary="A demo repo.",
+        strengths=[point],
+        risks=[BriefPoint(text="Small bus factor", fields=["bus_factor_top1"])],
+        getting_started=[BriefPoint(text="Read the README", fields=["contributors"])],
+        dropped_points=0,
+    )
+
+
+class FakeBriefGenerator:
+    """BriefGenerator stand-in returning a canned brief and recording calls."""
+
+    def __init__(self, brief: GeneratedBrief | None = None, error: Exception | None = None) -> None:
+        """Set the canned brief or error to raise."""
+        self.brief = brief if brief is not None else make_brief()
+        self.error = error
+        self.calls: list[tuple[AnalysisReport, str | None, bool]] = []
+
+    async def generate(
+        self, report: AnalysisReport, readme: str | None, *, is_private: bool
+    ) -> GeneratedBrief:
+        """Record the call and return the canned brief or raise."""
+        self.calls.append((report, readme, is_private))
+        if self.error is not None:
+            raise self.error
+        return self.brief
