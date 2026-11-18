@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.errors import InvalidRepoInputError
+
+_INVALID_REPO_MESSAGE = "Enter a repo like owner/name or a github.com link"
+_GITHUB_HOSTS = frozenset({"github.com", "www.github.com"})
+_OWNER_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?")
+_REPO_RE = re.compile(r"[A-Za-z0-9._](?:[A-Za-z0-9._-]{0,99})")
 
 
 class RepoRef(BaseModel):
@@ -20,6 +28,36 @@ class RepoRef(BaseModel):
     def full_name(self) -> str:
         """Return the canonical ``owner/name`` identifier."""
         return f"{self.owner}/{self.name}"
+
+    @classmethod
+    def parse(cls, raw: str) -> RepoRef:
+        """Normalize user input to ``owner/repo`` or raise ``InvalidRepoInputError``."""
+        text = raw.strip()
+        if not text:
+            raise InvalidRepoInputError(_INVALID_REPO_MESSAGE)
+        if "://" in text:
+            scheme, _, rest = text.partition("://")
+            if scheme.lower() not in {"http", "https"}:
+                raise InvalidRepoInputError(_INVALID_REPO_MESSAGE)
+            text = rest
+        text = re.split(r"[?#]", text, maxsplit=1)[0]
+        segments = [seg for seg in text.split("/") if seg]
+        if segments and ("." in segments[0] or segments[0].lower() in _GITHUB_HOSTS):
+            if segments[0].lower() not in _GITHUB_HOSTS:
+                raise InvalidRepoInputError(_INVALID_REPO_MESSAGE)
+            segments = segments[1:]
+        if len(segments) < 2:
+            raise InvalidRepoInputError(_INVALID_REPO_MESSAGE)
+        owner, repo = segments[0], segments[1]
+        if repo.endswith(".git"):
+            repo = repo[: -len(".git")]
+        if (
+            _OWNER_RE.fullmatch(owner) is None
+            or _REPO_RE.fullmatch(repo) is None
+            or repo in {".", ".."}
+        ):
+            raise InvalidRepoInputError(_INVALID_REPO_MESSAGE)
+        return cls(owner=owner, name=repo)
 
 
 class RateLimitInfo(BaseModel):
@@ -207,4 +245,6 @@ class AnalysisReport(BaseModel):
     activity: ActivityAnalysis
     punch_card: PunchCardMetrics
     metrics: RepoMetrics
+    unavailable_sections: list[str] = Field(default_factory=list)
+    pending_sections: list[str] = Field(default_factory=list)
     generated_at: datetime

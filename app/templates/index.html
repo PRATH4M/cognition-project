@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>GitHub Repo Analyzer</h1>
+<form method="post" action="/analyze">
+  <label for="repo">Repository</label>
+  <input id="repo" name="repo" type="text" placeholder="owner/name or github.com link" required>
+  <label for="token">GitHub token (optional)</label>
+  <input id="token" name="token" type="password" autocomplete="off">
+  <button type="submit">Analyze</button>
+</form>
+{% if recent %}
+<h2>Recent analyses</h2>
+<ul>
+  {% for name in recent %}<li>{{ name }}</li>{% endfor %}
+</ul>
+{% endif %}
+{% endblock %}

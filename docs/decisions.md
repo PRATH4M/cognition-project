@@ -11,3 +11,7 @@
 | 2026-11-18 | Apply the shared rate-limit gate only to requests without a user token; user-token requests skip the gate and do not update shared state. | User tokens have separate GitHub rate-limit budgets and must not affect anonymous/shared throttling. |
 | 2026-11-18 | Cap `AnalysisStore` at 500 entries with oldest-first eviction in addition to TTL expiry. | Bounds memory use while preserving recent analysis IDs for briefs. |
 | 2026-11-18 | Vendor htmx `2.0.11` and Chart.js `4.6.1` from official npm package tarballs; record version, source URL, and SHA-256 when vendored. | Keeps the app self-contained without CDN dependencies or floating frontend versions. |
+| 2026-11-19 | Defer `/brief` and `/api/brief` to the LLM step; no stub routes. | Brief endpoints cannot work before `llm.py` exists, so they ship together in step 5. |
+| 2026-11-19 | Key the repo-name cache by the lowercased GitHub `full_name`; lookups lowercase the input. | GitHub names are case-insensitive, so `Octo/Repo` and `octo/repo` must share one cache entry. |
+| 2026-11-19 | Results with pending stats sections are not repo-name cached. | Only complete analyses may be reused as recent/public results. |
+| 2026-11-19 | `RepoRef.parse` trims input, requires a github.com host when a host is present, and validates owner/repo character sets; deeper paths are ignored. | FR1 normalization must reject non-GitHub hosts and invalid names while accepting common URL forms. |

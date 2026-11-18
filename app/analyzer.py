@@ -34,6 +34,8 @@ def analyze(
     activity_pending: bool = False,
     punch_card: list[PunchCardPoint] | None = None,
     languages: dict[str, int] | None = None,
+    unavailable_sections: list[str] | None = None,
+    pending_sections: list[str] | None = None,
     now: datetime,
 ) -> AnalysisReport:
     """Build a complete analysis report from fetched GitHub data."""
@@ -50,6 +52,8 @@ def analyze(
             contributor_analysis,
             languages or {},
         ),
+        unavailable_sections=unavailable_sections or [],
+        pending_sections=pending_sections or [],
         generated_at=now,
     )
 

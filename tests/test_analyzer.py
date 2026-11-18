@@ -4,6 +4,15 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from helpers import (
+    NOW,
+    make_contributor,
+    make_contributors_result,
+    make_repo,
+    make_week,
+    make_weeks,
+)
+
 from app.analyzer import (
     analyze,
     build_activity,
@@ -11,75 +20,7 @@ from app.analyzer import (
     build_metrics,
     build_punch_metrics,
 )
-from app.models import (
-    ContributorResult,
-    GitHubCommitActivityWeek,
-    GitHubContributor,
-    GitHubLicense,
-    GitHubRepo,
-    PunchCardPoint,
-    WeekPoint,
-)
-
-NOW = datetime(2026, 11, 19, tzinfo=UTC)
-
-
-def make_repo(**overrides: object) -> GitHubRepo:
-    """Build a repo payload with sensible defaults."""
-    data: dict[str, object] = {
-        "name": "repo",
-        "full_name": "octo/repo",
-        "html_url": "https://github.com/octo/repo",
-        "description": "A test repo",
-        "stargazers_count": 10,
-        "forks_count": 3,
-        "watchers_count": 10,
-        "subscribers_count": 7,
-        "open_issues_count": 4,
-        "language": "Python",
-        "license": GitHubLicense(spdx_id="MIT", name="MIT License"),
-        "topics": ["api", "cli"],
-        "created_at": datetime(2024, 1, 1, tzinfo=UTC),
-        "pushed_at": datetime(2026, 11, 1, tzinfo=UTC),
-        "archived": False,
-        "private": False,
-    }
-    data.update(overrides)
-    return GitHubRepo.model_validate(data)
-
-
-def make_contributor(
-    login: str | None = "alice",
-    commits: int = 10,
-    type: str = "User",
-) -> GitHubContributor:
-    """Build a contributor payload."""
-    return GitHubContributor(
-        login=login,
-        avatar_url="https://avatars.example.com/a",
-        html_url=f"https://github.com/{login}" if login else None,
-        contributions=commits,
-        type=type,
-    )
-
-
-def make_week(week: int, total: int) -> GitHubCommitActivityWeek:
-    """Build a commit-activity week."""
-    return GitHubCommitActivityWeek(week=week, total=total, days=[0] * 7)
-
-
-def make_contributors_result(
-    contributors: list[GitHubContributor], **overrides: object
-) -> ContributorResult:
-    """Build a contributor result."""
-    data: dict[str, object] = {
-        "contributors": contributors,
-        "pages_fetched": 1,
-        "total_pages": 1,
-    }
-    data.update(overrides)
-    return ContributorResult.model_validate(data)
-
+from app.models import PunchCardPoint, WeekPoint
 
 # --- metadata ---
 
@@ -227,11 +168,6 @@ def test_punch_card_no_commits() -> None:
 
 
 # --- derived metrics ---
-
-
-def make_weeks(totals: list[int]) -> list[GitHubCommitActivityWeek]:
-    """Build weeks oldest-first like GitHub returns them."""
-    return [make_week(i + 1, total) for i, total in enumerate(totals)]
 
 
 def test_recent_vs_previous_12_weeks() -> None:

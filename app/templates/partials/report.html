@@ -1,0 +1,21 @@
+{% set report = outcome.report %}
+<h2>{{ report.metadata.full_name }}</h2>
+<p>{{ report.metadata.description }}</p>
+<dl>
+  <dt>Stars</dt><dd>{{ report.metadata.stars }}</dd>
+  <dt>Forks</dt><dd>{{ report.metadata.forks }}</dd>
+  <dt>Watchers</dt><dd>{{ report.metadata.watchers if report.metadata.watchers is not none else "n/a" }}</dd>
+  <dt>Open issues</dt><dd>{{ report.metadata.open_issues }}</dd>
+  <dt>Language</dt><dd>{{ report.metadata.language or "n/a" }}</dd>
+  <dt>License</dt><dd>{{ report.metadata.license or "n/a" }}</dd>
+  <dt>Archived</dt><dd>{{ report.metadata.archived }}</dd>
+</dl>
+{% if report.unavailable_sections %}
+<p>Unavailable: {{ report.unavailable_sections | join(", ") }}</p>
+{% endif %}
+{% if report.pending_sections %}
+<p>Still computing: {{ report.pending_sections | join(", ") }}</p>
+{% endif %}
+{% if rate_limit %}
+<p>GitHub rate limit: {{ rate_limit.remaining }} remaining</p>
+{% endif %}

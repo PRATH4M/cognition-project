@@ -6,11 +6,16 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
+from fastapi.testclient import TestClient
+from helpers import FakeGitHubClient
 from pydantic import SecretStr
 
+from app.cache import AnalysisStore, RepoAnalysisCache
 from app.config import Settings
 from app.github_client import GitHubClient
+from app.main import create_app
 from app.models import RepoRef
+from app.service import AnalysisService
 
 FAKE_GITHUB_VALUE = "test-github-token"
 FAKE_OPENROUTER_VALUE = "test-openrouter-key"
@@ -58,3 +63,36 @@ async def client_factory() -> Any:
 def user_token() -> SecretStr:
     """Return a fake per-request user token."""
     return SecretStr("user-token")
+
+
+@pytest.fixture
+def fake_client() -> FakeGitHubClient:
+    """Return a fake GitHub client."""
+    return FakeGitHubClient()
+
+
+@pytest.fixture
+def service(fake_client: FakeGitHubClient) -> AnalysisService:
+    """Return an analysis service backed by the fake client."""
+    return AnalysisService(
+        fake_client,  # type: ignore[arg-type]
+        AnalysisStore(3600),
+        RepoAnalysisCache(3600),
+    )
+
+
+@pytest.fixture
+def test_settings() -> Settings:
+    """Return settings with all keys disabled, ignoring ``.env`` and env vars."""
+    return Settings(
+        _env_file=None,
+        github_token=None,
+        openrouter_api_key=None,
+        llm_model=None,
+    )
+
+
+@pytest.fixture
+def client(service: AnalysisService, test_settings: Settings) -> TestClient:
+    """Return a test client for the app with the fake service."""
+    return TestClient(create_app(test_settings, service=service), raise_server_exceptions=False)

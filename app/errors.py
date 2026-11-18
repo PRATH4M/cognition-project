@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from app.models import RateLimitInfo
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models import RateLimitInfo
 
 
 class AppError(Exception):
