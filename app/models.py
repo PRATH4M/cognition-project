@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -115,3 +116,95 @@ class PunchCardPoint(BaseModel):
     day: int = Field(ge=0, le=6)
     hour: int = Field(ge=0, le=23)
     commits: int = Field(ge=0)
+
+
+MaintenanceStatus = Literal["active", "slowing", "dormant", "archived", "unknown"]
+
+
+class RepoMetadata(BaseModel):
+    """Repository metadata prepared for display."""
+
+    name: str
+    full_name: str
+    url: str
+    description: str | None = None
+    stars: int = 0
+    forks: int = 0
+    watchers: int | None = None
+    open_issues: int = 0
+    language: str | None = None
+    license: str | None = None
+    topics: list[str] = Field(default_factory=list)
+    created_at: datetime
+    pushed_at: datetime | None = None
+    archived: bool = False
+
+
+class ContributorEntry(BaseModel):
+    """One contributor prepared for display."""
+
+    login: str | None = None
+    avatar_url: str | None = None
+    url: str | None = None
+    commits: int = 0
+    is_bot: bool = False
+
+
+class ContributorAnalysis(BaseModel):
+    """Sorted contributor list plus pagination state."""
+
+    contributors: list[ContributorEntry] = Field(default_factory=list)
+    needs_token: bool = False
+    truncated: bool = False
+    total_pages: int | None = None
+
+
+class WeekPoint(BaseModel):
+    """Total commits for one week, newest first."""
+
+    week: int
+    total: int = 0
+
+
+class ActivityAnalysis(BaseModel):
+    """Weekly commit activity normalized for charting."""
+
+    weeks: list[WeekPoint] = Field(default_factory=list)
+    pending: bool = False
+
+
+class PunchCardMetrics(BaseModel):
+    """Busiest commit times from punch-card data; day 0 is Sunday."""
+
+    busiest_weekday: int | None = None
+    busiest_hour: int | None = None
+
+
+class LanguageShare(BaseModel):
+    """One language's share of repository bytes."""
+
+    name: str
+    percentage: float
+
+
+class RepoMetrics(BaseModel):
+    """Computed commit-frequency metrics for a repository."""
+
+    recent_12_weeks_commits: int | None = None
+    previous_12_weeks_commits: int | None = None
+    active_week_percentage: float | None = None
+    languages: list[LanguageShare] = Field(default_factory=list)
+    bus_factor_top1: float | None = None
+    bus_factor_top3: float | None = None
+    maintenance: MaintenanceStatus = "unknown"
+
+
+class AnalysisReport(BaseModel):
+    """Complete analysis result for one repository."""
+
+    metadata: RepoMetadata
+    contributors: ContributorAnalysis
+    activity: ActivityAnalysis
+    punch_card: PunchCardMetrics
+    metrics: RepoMetrics
+    generated_at: datetime
