@@ -45,6 +45,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
 addopts = "-ra --strict-markers"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.mypy]
 strict = true
