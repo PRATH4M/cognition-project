@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
 from pathlib import Path
@@ -186,6 +187,8 @@ def _lifespan(
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if service is None:
             resolved = settings or Settings()
+            logging.basicConfig(level=logging.WARNING)
+            logging.getLogger("app").setLevel(resolved.log_level.upper())
             client = GitHubClient(server_token=resolved.github_token)
             generator = (
                 BriefGenerator(resolved.openrouter_api_key, resolved.llm_model)

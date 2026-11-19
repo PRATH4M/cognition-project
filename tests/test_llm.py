@@ -258,3 +258,67 @@ def test_brief_schema_is_strict() -> None:
     point_schema = schema["$defs"]["BriefPoint"]
     assert point_schema["additionalProperties"] is False
     assert set(point_schema["required"]) == set(point_schema["properties"])
+
+
+@respx.mock
+async def test_call_logged_with_usage_and_no_content(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """The telemetry line carries metrics but never request or reply content."""
+    word = "UNIQUE_README_WORD_XYZ_123"
+    payload = completion(brief_json())
+    payload["id"] = "gen-test-123"
+    payload["usage"] = {"prompt_tokens": 111, "completion_tokens": 22, "cost": 0.0015}
+    respx.post(URL).respond(200, json=payload)
+    generator = await make_generator()
+    with caplog.at_level(logging.INFO, logger="app.llm"):
+        await generator.generate(sample_report(), f"# Title\n{word}", is_private=False)
+    records = [r for r in caplog.records if r.name == "app.llm"]
+    assert len(records) == 1
+    msg = records[0].getMessage()
+    for expected in (
+        "model=test/model",
+        "result=ok",
+        "elapsed=",
+        "prompt_tokens=111",
+        "completion_tokens=22",
+        "cost=0.0015",
+        "dropped_points=0",
+        "generation_id=gen-test-123",
+    ):
+        assert expected in msg
+    for forbidden in (word, "octo", "A demo repo.", "test-openrouter-key", "untrusted"):
+        assert forbidden not in msg
+    await generator.aclose()
+
+
+@respx.mock
+async def test_call_logged_on_http_error(caplog: pytest.LogCaptureFixture) -> None:
+    """Non-200 replies log the HTTP status as the result."""
+    respx.post(URL).respond(500, json={"error": "boom"})
+    generator = await make_generator()
+    with (
+        caplog.at_level(logging.INFO, logger="app.llm"),
+        pytest.raises(BriefGenerationError),
+    ):
+        await generator.generate(sample_report(), None, is_private=False)
+    records = [r for r in caplog.records if r.name == "app.llm"]
+    assert len(records) == 1
+    assert "result=http_500" in records[0].getMessage()
+    await generator.aclose()
+
+
+@respx.mock
+async def test_call_logged_on_truncated_reply(caplog: pytest.LogCaptureFixture) -> None:
+    """Truncated replies log the result as truncated."""
+    respx.post(URL).respond(200, json=completion(brief_json(), "length"))
+    generator = await make_generator()
+    with (
+        caplog.at_level(logging.INFO, logger="app.llm"),
+        pytest.raises(BriefGenerationError),
+    ):
+        await generator.generate(sample_report(), None, is_private=False)
+    records = [r for r in caplog.records if r.name == "app.llm"]
+    assert len(records) == 1
+    assert "result=truncated" in records[0].getMessage()
+    await generator.aclose()

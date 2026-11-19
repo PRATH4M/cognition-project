@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import logging
+import time
 from typing import Any
 
 import httpx
 from pydantic import SecretStr, ValidationError
 
-from app.errors import BriefGenerationError
+from app.errors import BriefGenerationError, BriefTruncatedError
 from app.models import AnalysisReport, Brief, BriefPoint, GeneratedBrief
+
+logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1"
 MAX_README_CHARS = 8000
@@ -79,6 +83,22 @@ def validate_brief(brief: Brief, allowed: set[str]) -> GeneratedBrief:
     return GeneratedBrief(summary=brief.summary, dropped_points=dropped, **sections)
 
 
+def _call_stats(data: dict[str, Any]) -> dict[str, Any]:
+    """Extract usage telemetry from an OpenRouter response body."""
+    usage = data.get("usage")
+    usage = usage if isinstance(usage, dict) else {}
+    return {
+        "prompt_tokens": usage.get("prompt_tokens"),
+        "completion_tokens": usage.get("completion_tokens"),
+        "cost": usage.get("cost"),
+        "generation_id": data.get("id"),
+    }
+
+
+def _n_a(value: Any) -> Any:
+    return "n/a" if value is None else value
+
+
 class BriefGenerator:
     """Generates validated briefs through the OpenRouter chat API."""
 
@@ -122,29 +142,64 @@ class BriefGenerator:
             },
             "provider": {"require_parameters": True} | ({"zdr": True} if is_private else {}),
         }
+        started = time.monotonic()
+        result = "request_failed"
+        stats: dict[str, Any] = {}
+        dropped: int | None = None
         try:
             response = await self._client.post(
                 "/chat/completions",
                 json=payload,
                 headers={"Authorization": f"Bearer {self._api_key.get_secret_value()}"},
             )
+            try:
+                data = response.json()
+            except ValueError:
+                data = {}
+            if not isinstance(data, dict):
+                data = {}
+            stats = _call_stats(data)
+            if response.status_code != 200:
+                result = f"http_{response.status_code}"
+                raise BriefGenerationError(
+                    f"AI brief request failed with status {response.status_code}"
+                )
+            try:
+                brief = self._parse(data, allowed)
+            except BriefTruncatedError:
+                result = "truncated"
+                raise
+            except BriefGenerationError:
+                result = "invalid"
+                raise
+            result = "ok"
+            dropped = brief.dropped_points
+            return brief
         except httpx.HTTPError as exc:
             raise BriefGenerationError("AI brief request failed") from exc
-        if response.status_code != 200:
-            raise BriefGenerationError(
-                f"AI brief request failed with status {response.status_code}"
+        finally:
+            logger.info(
+                "brief_call model=%s result=%s elapsed=%.3fs prompt_tokens=%s "
+                "completion_tokens=%s cost=%s dropped_points=%s generation_id=%s",
+                self._model,
+                result,
+                time.monotonic() - started,
+                _n_a(stats.get("prompt_tokens")),
+                _n_a(stats.get("completion_tokens")),
+                _n_a(stats.get("cost")),
+                _n_a(dropped),
+                _n_a(stats.get("generation_id")),
             )
-        return self._parse(response, allowed)
 
-    def _parse(self, response: httpx.Response, allowed: set[str]) -> GeneratedBrief:
+    def _parse(self, data: dict[str, Any], allowed: set[str]) -> GeneratedBrief:
         try:
-            choice = response.json()["choices"][0]
+            choice = data["choices"][0]
             finish_reason = choice.get("finish_reason")
             content = choice["message"]["content"]
-        except (ValueError, KeyError, IndexError, TypeError) as exc:
+        except (KeyError, IndexError, TypeError) as exc:
             raise BriefGenerationError("AI brief reply was malformed") from exc
         if finish_reason != "stop":
-            raise BriefGenerationError("AI brief reply was truncated")
+            raise BriefTruncatedError("AI brief reply was truncated")
         try:
             brief = Brief.model_validate(json.loads(content))
         except (ValueError, ValidationError) as exc:

@@ -32,11 +32,11 @@ Copy `.env.example` to `.env` and fill in what you need — every setting is opt
 | `LLM_MODEL` | The OpenRouter model used for briefs. Must support structured outputs (json_schema) on OpenRouter. |
 | `LLM_ZDR_ENABLED` | Set `true` to allow briefs for private repos. It makes the app ask OpenRouter to route private-repo briefs only to zero-data-retention providers; the brief fails if the configured model has none. |
 | `CACHE_TTL_SECONDS` | In-memory cache lifetime for analyses (default 3600). |
-| `LOG_LEVEL` | Python log level (default INFO). |
+| `LOG_LEVEL` | Log level for the app's own logs (default INFO); third-party library logs stay at WARNING. |
 
 There is also a **GitHub token** field in the web form. It is different from `GITHUB_TOKEN`: it is used for that single request only, never stored or logged, opens *your* private repos, and gives *you* your own 5,000 requests/hour instead of sharing the instance budget. It needs Metadata and Contents read access on the repo you're analyzing.
 
-The AI brief only runs when someone clicks the button — it's never generated automatically, and the result is stored so the same analysis is never paid for twice. `LLM_ZDR_ENABLED=true` is required before a private repo's data may go to the LLM.
+The AI brief only runs when someone clicks the button — it's never generated automatically, and the result is stored so the same analysis is never paid for twice. `LLM_ZDR_ENABLED=true` is required before a private repo's data may go to the LLM. Each AI brief call logs one line with the model, token counts, cost, duration, and result, never any content.
 
 ## API
 

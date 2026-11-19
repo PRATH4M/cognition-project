@@ -67,6 +67,10 @@ class BriefGenerationError(AppError):
     status_code = 502
 
 
+class BriefTruncatedError(BriefGenerationError):
+    """Raised when the LLM reply was cut off before finishing."""
+
+
 class GitHubStatusError(Exception):
     """Internal non-fatal GitHub HTTP status used for section mapping."""
 
