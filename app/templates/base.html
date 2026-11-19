@@ -12,7 +12,13 @@
   <script src="/static/js/app.js" defer></script>
 </head>
 <body>
-  <main>
+  <header class="topbar">
+    <div class="wrap">
+      <a class="brand" href="/">GitHub Repo Analyzer</a>
+      <span class="tagline">Repository insights</span>
+    </div>
+  </header>
+  <main id="main">
     {% block content %}{% endblock %}
   </main>
 </body>

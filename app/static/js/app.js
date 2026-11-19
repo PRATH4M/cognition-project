@@ -28,8 +28,21 @@
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+        },
         scales: {
-          y: { beginAtZero: true, ticks: { precision: 0 } },
+          x: {
+            grid: { display: false },
+            ticks: { maxTicksLimit: 12, color: '#64748b', font: { size: 11 } },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0, color: '#64748b', font: { size: 11 } },
+            grid: { color: '#e2e8f0' },
+          },
         },
       },
     });
